@@ -1,0 +1,23 @@
+{
+  "name": "extpo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Domain-specific agent backends: a shared kernel plus two independent vertical services (trading, marketing).",
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "scripts": {
+    "trading": "node --experimental-sqlite services/trading/main.ts",
+    "marketing": "node --experimental-sqlite services/marketing/main.ts",
+    "test": "node --experimental-sqlite --test 'test/**/*.test.ts'",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.117.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
+  }
+}
