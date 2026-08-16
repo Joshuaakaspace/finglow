@@ -4,6 +4,7 @@ import { createStore, type Store } from "./store.ts";
 import { createLocalSandbox, type Sandbox } from "./sandbox.ts";
 import { createRouter, createHttpServer, badRequest, notFound, requireString, optionalString, optionalObject, type Router } from "./http.ts";
 import { nextCronFire } from "./cron.ts";
+import { computeMetrics } from "./metrics.ts";
 import { loadSkills } from "./skills.ts";
 import type { CommandPolicy } from "./policy.ts";
 import type { Harness } from "./harness/harness.ts";
@@ -212,6 +213,12 @@ export function createService(definition: ServiceDefinition): Service {
   router.get("/projects/:id/crons", (ctx) => ({ crons: store.listCrons(ctx.params.id) }));
 
   router.get("/audit", (ctx) => ({ audit: store.listAudit(Number(ctx.query.get("limit") ?? 100)) }));
+
+  router.get("/metrics", (ctx) => {
+    const windowHours = Number(ctx.query.get("hours") ?? 0);
+    const since = windowHours > 0 ? Date.now() - windowHours * 3_600_000 : undefined;
+    return { service: definition.id, ...computeMetrics(db, { since }) };
+  });
 
   definition.buildRoutes?.({ store, router, engine, sandbox });
 

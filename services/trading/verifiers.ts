@@ -2,7 +2,19 @@ import type { Finding, SyncVerifier, ToolCallRecord, VerificationInput, Verifier
 import { finding } from "../../kernel/verify.ts";
 import type { TradingDomain } from "./domain.ts";
 
-const NUMBER_TOKEN = /-?\d[\d,]*(?:\.\d+)?/g;
+/**
+ * A leading `-` only counts as a sign when it does not follow a word character,
+ * otherwise the hyphen in `2026-08-15` reads as negative fifteen.
+ */
+const NUMBER_TOKEN = /(?<![\w.])-?\d[\d,]*(?:\.\d+)?/g;
+
+/** Dates and clock times state no computed quantity, so they are not claims. */
+const DATE_OR_TIME =
+  /\b\d{4}-\d{1,2}-\d{1,2}(?:[T ]\d{1,2}:\d{2}(?::\d{2})?Z?)?\b|\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b/g;
+
+function withoutDates(text: string): string {
+  return text.replace(DATE_OR_TIME, " ");
+}
 
 function normalizeNumber(token: string): number {
   return Number(token.replace(/,/g, ""));
@@ -74,7 +86,7 @@ export function numericProvenanceVerifier(): SyncVerifier {
       const seen = new Set<string>();
       const unsourced: string[] = [];
 
-      for (const token of input.reply.match(NUMBER_TOKEN) ?? []) {
+      for (const token of withoutDates(input.reply).match(NUMBER_TOKEN) ?? []) {
         if (seen.has(token)) continue;
         seen.add(token);
         const value = normalizeNumber(token);

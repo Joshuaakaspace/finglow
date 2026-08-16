@@ -32,7 +32,8 @@ persistence, `node:http` for the API, `node:test` for the suite. No build step: 
 npm install
 npm run trading     # :8081
 npm run marketing   # :8082
-npm test            # 102 tests
+npm test            # 118 tests
+npm run eval        # score the verifiers against the labelled corpora
 npm run typecheck
 ```
 
@@ -109,6 +110,48 @@ Tools: `execute`, `write_file`, `read_file`, `brand_voice`, `platform_spec`, `ch
 `competitor_scan`, `draft_post`, `schedule_post` (gated). Skills: repurpose long-form, competitor audit, performance
 report.
 
+## Measuring the gate
+
+A verifier that blocks correct output is worse than no verifier. Two mechanisms measure that.
+
+**Offline — `npm run eval`.** Labelled corpora in `evals/*.json`: `should_pass` cases are correct replies that must
+survive the gate, `should_block` cases are the failure modes it exists to catch. The runner scores precision, recall
+and — the number that matters — the **false-positive rate**, then exits non-zero on any regression.
+
+```
+trading  —  23/23 correct  (8ms)
+  recall 100.0%   precision 100.0%   false-positive rate 0.0%
+  verifier                blocks  warns  false-blocks
+  lookahead-bias               5      0             0
+  numeric-provenance           2      0             0
+  reconciliation-tie-out       2      2             0
+  risk-limits                  2      0             0
+  no-execution-claim           1      0             0
+```
+
+This paid for itself on its first run: the corpus case `provenance/iso-date-in-reply` exposed the number tokenizer
+reading `2026-08-15` as **negative fifteen**, which would have blocked any reply containing a date. Fixed in
+`withoutDates()`; the case is now a permanent regression guard.
+
+Adding a case is a JSON entry, so a bug found in production becomes a test in a minute.
+
+**Online — `GET /metrics`.** The same signal from real traffic, aggregated out of the rows the engine already writes:
+
+```json
+{
+  "runs": { "ok": 128, "blocked": 4, "failed": 1, "awaiting_approval": 2 },
+  "completionRate": 0.948,
+  "repair": { "attempted": 31, "succeeded": 27, "rate": 0.871 },
+  "blockedAfterBudget": 4,
+  "latencyMs": { "p50": 2140, "p95": 8830, "max": 14200 },
+  "topCodes": [{ "code": "numeric-provenance/unsourced_number", "count": 22 }]
+}
+```
+
+`repair.rate` says whether the findings are actionable — a low rate means the messages are unclear, not that the model
+is bad. `blockedAfterBudget` is the count of runs that never produced usable output; it's the one to alert on. Pass
+`?hours=24` to window it.
+
 ## Shared HTTP surface
 
 Both services expose the same core API, plus their own domain routes.
@@ -138,6 +181,8 @@ test/kernel.test.ts               cron, policy, skills, sandbox, store, verifica
 test/engine.test.ts               repair loop, approval suspend/resume, denial, policy denial, artifacts, failures
 test/trading-verifiers.test.ts    all five trading verifiers, passing and failing
 test/marketing-verifiers.test.ts  all six marketing verifiers, plus platform helpers
+test/eval.test.ts                 eval scoring, and both corpora held at 100%
+test/metrics.test.ts              aggregation over real runs, empty-store edges
 test/api.test.ts                  both services booted on ephemeral ports, exercised over HTTP
 ```
 
@@ -155,3 +200,9 @@ test/api.test.ts                  both services booted on ephemeral ports, exerc
   repoint at Postgres when concurrency demands it.
 - **Domain data is seeded, not integrated.** There are no live market-data or social-platform connectors; both services
   read from their own tables, which is what makes the verifiers deterministic and testable.
+- **The corpora are hand-written, not harvested.** 44 cases covering every verifier, but the `should_pass` examples are
+  my guesses at how a model phrases things. Real replies will produce false positives these cases do not anticipate;
+  each one found should become a new case.
+- **No live-model eval mode.** `npm run eval` judges verifiers against fixed output, which needs no API key and is the
+  right default. Scoring the *model* — running prompts end to end and measuring pass@1 — is the obvious next addition
+  and needs a key.

@@ -11,6 +11,9 @@
     "trading": "node --experimental-sqlite services/trading/main.ts",
     "marketing": "node --experimental-sqlite services/marketing/main.ts",
     "test": "node --experimental-sqlite --test 'test/**/*.test.ts'",
+    "eval": "node --experimental-sqlite scripts/eval.ts",
+    "eval:trading": "node --experimental-sqlite scripts/eval.ts trading",
+    "eval:marketing": "node --experimental-sqlite scripts/eval.ts marketing",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

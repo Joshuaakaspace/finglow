@@ -1,0 +1,425 @@
+{
+  "suite": "marketing",
+  "cases": [
+    {
+      "id": "platform/x-within-limit",
+      "label": "should_pass",
+      "prompt": "draft a post for X",
+      "reply": "Drafted one post for X.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "We cut signup from six steps to two. The three we deleted asked for data we never used.",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "platform/x-link-costs-23",
+      "label": "should_pass",
+      "prompt": "draft a post with a link",
+      "reply": "Drafted one post for X with a tracked link.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "We cut signup from six steps to two. Here is exactly what we removed and why it mattered for activation. https://northwind.example/blog/signup-teardown-and-what-we-learned?utm_source=x&utm_medium=social&utm_campaign=teardown",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ],
+      "note": "raw length is over 280 but X counts any link as 23 characters"
+    },
+    {
+      "id": "platform/x-too-long",
+      "label": "should_block",
+      "prompt": "draft a post for X",
+      "reply": "Drafted a post.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "We cut signup from six steps to two, and the three steps we deleted were all asking for information we never once used in onboarding, support, billing, or anywhere else in the product, which raises the obvious question of why they were ever there in the first place, and the answer is nobody owned the form.",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ],
+      "expectCodes": ["too_long"]
+    },
+    {
+      "id": "platform/too-many-hashtags",
+      "label": "should_block",
+      "prompt": "draft a post for X",
+      "reply": "Drafted a post.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "Shipped it. #product #launch #startup #saas",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ],
+      "expectCodes": ["too_many_hashtags"]
+    },
+    {
+      "id": "platform/instagram-bare-url",
+      "label": "should_block",
+      "prompt": "draft an instagram caption",
+      "reply": "Drafted a caption.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{igChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "instagram",
+            "body": "Read the teardown https://northwind.example/x?utm_source=ig&utm_medium=social&utm_campaign=teardown",
+            "has_media": true,
+            "sponsored": false
+          }
+        }
+      ],
+      "expectCodes": ["too_many_links"],
+      "note": "instagram captions are not clickable"
+    },
+    {
+      "id": "platform/instagram-missing-media",
+      "label": "should_block",
+      "prompt": "draft an instagram caption",
+      "reply": "Drafted a caption.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{igChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "instagram",
+            "body": "Two steps instead of six.",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ],
+      "expectCodes": ["media_required"]
+    },
+
+    {
+      "id": "voice/on-brand",
+      "label": "should_pass",
+      "prompt": "draft a post",
+      "reply": "Drafted one post.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "Support tickets about billing fell after we rewrote one error message.",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "voice/banned-phrase",
+      "label": "should_block",
+      "prompt": "draft a post",
+      "reply": "Drafted one post.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "Our new dashboard is a total game-changer for ops teams.",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ],
+      "expectCodes": ["banned_phrase"]
+    },
+    {
+      "id": "voice/emoji-forbidden",
+      "label": "should_block",
+      "prompt": "draft a post",
+      "reply": "Drafted one post.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "Shipped the new importer 🚀",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ],
+      "expectCodes": ["emoji_not_allowed"]
+    },
+
+    {
+      "id": "disclosure/organic-needs-none",
+      "label": "should_pass",
+      "prompt": "draft a post",
+      "reply": "Drafted one post.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "We rewrote the billing error message.",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "disclosure/sponsored-declared",
+      "label": "should_pass",
+      "prompt": "draft the sponsored post",
+      "reply": "Drafted the sponsored post with disclosure up front.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "#ad We worked with Acme on this integration and it saved us a week.",
+            "has_media": false,
+            "sponsored": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "disclosure/sponsored-undeclared",
+      "label": "should_block",
+      "prompt": "draft the sponsored post",
+      "reply": "Drafted the sponsored post.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "We worked with Acme on this integration and it saved us a week.",
+            "has_media": false,
+            "sponsored": true
+          }
+        }
+      ],
+      "expectCodes": ["missing_disclosure"]
+    },
+
+    {
+      "id": "utm/fully-tagged",
+      "label": "should_pass",
+      "prompt": "draft a post with a link",
+      "reply": "Drafted with a tracked link.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{liChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "linkedin",
+            "body": "The teardown: https://northwind.example/p?utm_source=linkedin&utm_medium=social&utm_campaign=teardown",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "utm/untagged-link",
+      "label": "should_block",
+      "prompt": "draft a post with a link",
+      "reply": "Drafted with a link.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{liChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "linkedin",
+            "body": "The teardown: https://northwind.example/p",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ],
+      "expectCodes": ["missing_utm"]
+    },
+    {
+      "id": "utm/uppercase-value",
+      "label": "should_block",
+      "prompt": "draft a post with a link",
+      "reply": "Drafted with a link.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{liChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "linkedin",
+            "body": "Read it: https://northwind.example/p?utm_source=LinkedIn&utm_medium=social&utm_campaign=teardown",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ],
+      "expectCodes": ["uppercase_utm"]
+    },
+
+    {
+      "id": "claims/ordinary-copy",
+      "label": "should_pass",
+      "prompt": "draft a post",
+      "reply": "Drafted one post.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "We shipped a faster importer this week.",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "claims/cited-superlative",
+      "label": "should_pass",
+      "prompt": "draft a post about the award",
+      "reply": "Drafted; the ranking is per the 2026 G2 report which we have on file.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "Rated the best tool in the category, according to the 2026 G2 report.",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ],
+      "note": "a superlative with a source clears the warn threshold"
+    },
+    {
+      "id": "claims/unqualified-guarantee",
+      "label": "should_block",
+      "prompt": "draft a promo post",
+      "reply": "Drafted the promo.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "Guaranteed results in 30 days or your money back.",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ],
+      "expectCodes": ["absolute_guarantee"]
+    },
+    {
+      "id": "claims/health-claim-even-when-cited",
+      "label": "should_block",
+      "prompt": "draft a post about the supplement",
+      "reply": "Drafted; according to the study we have on file.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "It cures insomnia within a week.",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ],
+      "expectCodes": ["health_claim"]
+    },
+
+    {
+      "id": "duplicate/fresh-copy",
+      "label": "should_pass",
+      "prompt": "draft a post",
+      "reply": "Drafted one post.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "Three things we learned migrating the importer to streaming.",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "duplicate/near-repeat-of-published",
+      "label": "should_block",
+      "prompt": "draft a post",
+      "reply": "Drafted one post.",
+      "toolCalls": [
+        {
+          "tool": "draft_post",
+          "output": {
+            "channel_id": "{{xChannel}}",
+            "brand_id": "{{brandId}}",
+            "platform": "x",
+            "body": "We cut onboarding from six steps to two — here is what we removed and why!",
+            "has_media": false,
+            "sponsored": false
+          }
+        }
+      ],
+      "expectCodes": ["near_duplicate"],
+      "note": "the channel already published this almost verbatim"
+    }
+  ]
+}
