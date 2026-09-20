@@ -23,6 +23,7 @@ export interface TradingServiceOptions {
   databasePath?: string;
   workspaceDir?: string;
   maxRepairAttempts?: number;
+  requireAuth?: boolean;
 }
 
 export interface TradingService extends Service {
@@ -43,6 +44,7 @@ export function createTradingService(options: TradingServiceOptions): TradingSer
     gatedTools: TRADING_GATED_TOOLS,
     harness: options.harness,
     maxRepairAttempts: options.maxRepairAttempts ?? 1,
+    requireAuth: options.requireAuth,
 
     buildTools({ store, sandbox }) {
       domain = createTradingDomain(store.db);

@@ -13,11 +13,15 @@ interface Client {
   patch(path: string, body?: unknown): Promise<{ status: number; body: any }>;
 }
 
-function client(port: number): Client {
+function client(port: number, apiKey?: string): Client {
   const call = async (method: string, path: string, body?: unknown) => {
+    const headers: Record<string, string> = {};
+    if (body !== undefined) headers["content-type"] = "application/json";
+    if (apiKey) headers.authorization = `Bearer ${apiKey}`;
+
     const response = await fetch(`http://127.0.0.1:${port}${path}`, {
       method,
-      headers: body === undefined ? {} : { "content-type": "application/json" },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await response.text();
@@ -37,6 +41,9 @@ describe("trading HTTP API", () => {
   let close: () => Promise<void>;
   let projectId: string;
   let bookId: string;
+  let apiKey: string;
+  let anonymous: Client;
+  let boundPort: number;
 
   before(async () => {
     dir = tempDir();
@@ -50,15 +57,39 @@ describe("trading HTTP API", () => {
     projectId = seeded.projectId;
     bookId = seeded.bookId;
     resolved = bookId;
+    const bootstrap = service.ensureBootstrapKey("demo@firm.test");
+    assert.ok(bootstrap, "a fresh service should mint a bootstrap key");
+    apiKey = bootstrap.key;
+
     const listener = await service.listen(0);
     close = listener.close;
-    api = client(listener.port);
+    boundPort = listener.port;
+    api = client(listener.port, apiKey);
+    anonymous = client(listener.port);
   });
 
   after(async () => {
     await close();
     service.close();
     dir.cleanup();
+  });
+
+  test("rejects a request with no API key", async () => {
+    const { status, body } = await anonymous.get("/projects");
+    assert.equal(status, 401);
+    assert.match(body.error, /API key is required/);
+  });
+
+  test("rejects an unknown API key", async () => {
+    const { status, body } = await client(boundPort, "extpo_deadbeefdeadbeefdeadbeefdeadbeef").get("/projects");
+    assert.equal(status, 401);
+    assert.match(body.error, /unknown or revoked/);
+  });
+
+  test("serves /health without a key", async () => {
+    const { status, body } = await anonymous.get("/health");
+    assert.equal(status, 200);
+    assert.equal(body.service, "trading");
   });
 
   test("reports its capabilities on /health", async () => {
@@ -75,10 +106,16 @@ describe("trading HTTP API", () => {
     assert.match(body.error, /no route/);
   });
 
-  test("rejects a malformed create", async () => {
-    const { status, body } = await api.post("/projects", { name: "x" });
+  test("rejects a create with no name", async () => {
+    const { status, body } = await api.post("/projects", { owner: "demo@firm.test" });
     assert.equal(status, 400);
-    assert.match(body.error, /"owner" is required/);
+    assert.match(body.error, /"name" is required/);
+  });
+
+  test("infers the owner from the presenting key", async () => {
+    const { status, body } = await api.post("/projects", { name: "Inferred" });
+    assert.equal(status, 201);
+    assert.equal(body.owner, "demo@firm.test");
   });
 
   test("runs a turn end to end and exposes the ledger", async () => {
@@ -167,9 +204,12 @@ describe("marketing HTTP API", () => {
     brandId = seeded.brandId;
     channels = seeded.channels;
     context = { brandId, channels };
+    const bootstrap = service.ensureBootstrapKey("demo@brand.test");
+    assert.ok(bootstrap, "a fresh service should mint a bootstrap key");
+
     const listener = await service.listen(0);
     close = listener.close;
-    api = client(listener.port);
+    api = client(listener.port, bootstrap.key);
   });
 
   after(async () => {

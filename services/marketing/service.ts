@@ -26,6 +26,7 @@ export interface MarketingServiceOptions {
   databasePath?: string;
   workspaceDir?: string;
   maxRepairAttempts?: number;
+  requireAuth?: boolean;
 }
 
 export interface MarketingService extends Service {
@@ -46,6 +47,7 @@ export function createMarketingService(options: MarketingServiceOptions): Market
     gatedTools: MARKETING_GATED_TOOLS,
     harness: options.harness,
     maxRepairAttempts: options.maxRepairAttempts ?? 1,
+    requireAuth: options.requireAuth,
 
     buildTools({ store, sandbox }) {
       domain = createMarketingDomain(store.db);

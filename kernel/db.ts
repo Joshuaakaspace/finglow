@@ -118,6 +118,18 @@ CREATE TABLE IF NOT EXISTS approvals (
 );
 CREATE INDEX IF NOT EXISTS approvals_run ON approvals(run_id, status);
 
+CREATE TABLE IF NOT EXISTS api_keys (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  key_hash TEXT NOT NULL UNIQUE,
+  owner TEXT NOT NULL,
+  admin INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  last_used_at INTEGER,
+  revoked_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS api_keys_owner ON api_keys(owner);
+
 CREATE TABLE IF NOT EXISTS audit (
   id TEXT PRIMARY KEY,
   at INTEGER NOT NULL,

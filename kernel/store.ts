@@ -1,6 +1,7 @@
 import type { Db } from "./db.ts";
 import { fromJson, toJson } from "./db.ts";
 import { newId, now, sha256 } from "./ids.ts";
+import { generateApiKey, hashApiKey, hashesMatch, type Principal } from "./auth.ts";
 import type {
   Approval,
   ApprovalStatus,
@@ -473,6 +474,50 @@ export function createStore(db: Db) {
 
     setCronEnabled(id: string, enabled: boolean, nextFireAt: number | null): void {
       db.prepare("UPDATE crons SET enabled = ?, next_fire_at = ? WHERE id = ?").run(enabled ? 1 : 0, nextFireAt, id);
+    },
+
+    /** Mint a key. The plaintext is returned once and never stored. */
+    createApiKey(input: { name: string; owner: string; admin?: boolean; key?: string }): { id: string; key: string } {
+      const key = input.key ?? generateApiKey();
+      const id = newId("key");
+      db.prepare(
+        "INSERT INTO api_keys (id, name, key_hash, owner, admin, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      ).run(id, input.name, hashApiKey(key), input.owner, input.admin ? 1 : 0, now());
+      return { id, key };
+    },
+
+    /** Resolve a presented key to a principal, or null if unknown or revoked. */
+    authenticate(key: string): Principal | null {
+      const hash = hashApiKey(key);
+      const r = db.prepare("SELECT * FROM api_keys WHERE key_hash = ? AND revoked_at IS NULL").get(hash) as
+        | Row
+        | undefined;
+      if (!r || !hashesMatch(str(r.key_hash), hash)) return null;
+      db.prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?").run(now(), str(r.id));
+      return { keyId: str(r.id), owner: str(r.owner), admin: num(r.admin) === 1, name: str(r.name) };
+    },
+
+    listApiKeys(): Array<{ id: string; name: string; owner: string; admin: boolean; createdAt: number; lastUsedAt: number | null; revokedAt: number | null }> {
+      const rows = db.prepare("SELECT * FROM api_keys ORDER BY created_at DESC").all() as Row[];
+      return rows.map((r) => ({
+        id: str(r.id),
+        name: str(r.name),
+        owner: str(r.owner),
+        admin: num(r.admin) === 1,
+        createdAt: num(r.created_at),
+        lastUsedAt: nnum(r.last_used_at),
+        revokedAt: nnum(r.revoked_at),
+      }));
+    },
+
+    revokeApiKey(id: string): boolean {
+      const changes = db.prepare("UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL").run(now(), id);
+      return Number(changes.changes) === 1;
+    },
+
+    countApiKeys(): number {
+      const r = db.prepare("SELECT COUNT(*) AS n FROM api_keys WHERE revoked_at IS NULL").get() as Row | undefined;
+      return num(r?.n);
     },
 
     audit(actor: string, action: string, target: string, detail: unknown = {}): AuditRecord {

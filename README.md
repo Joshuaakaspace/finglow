@@ -32,7 +32,7 @@ persistence, `node:http` for the API, `node:test` for the suite. No build step: 
 npm install
 npm run trading     # :8081
 npm run marketing   # :8082
-npm test            # 118 tests
+npm test            # 147 tests
 npm run eval        # score the verifiers against the labelled corpora
 npm run typecheck
 ```
@@ -152,6 +152,44 @@ Adding a case is a JSON entry, so a bug found in production becomes a test in a 
 is bad. `blockedAfterBudget` is the count of runs that never produced usable output; it's the one to alert on. Pass
 `?hours=24` to window it.
 
+## Auth and the worker
+
+**Every route except `GET /health` needs an API key.** Keys are stored only as a SHA-256 hash, compared in constant
+time, and revocable.
+
+```bash
+curl -H "Authorization: Bearer extpo_..." localhost:8081/projects
+```
+
+On first boot with no keys, the service mints an admin key and prints it once:
+
+```
+[trading] no API keys existed; minted an admin key (shown once): extpo_5b2b8a27...
+```
+
+Access is scoped by owner. A key sees only its own projects, and everything hanging off them — sessions, runs,
+artifacts, approvals. **A project belonging to someone else reads as 404, never 403**, so the API never confirms that
+another owner's id exists. Admin keys see everything and are the only ones that can reach `/audit`, `/metrics`,
+`/keys`, or create a project on another owner's behalf.
+
+`POST /projects` infers the owner from the presenting key; passing a different `owner` requires an admin key.
+
+Set `requireAuth: false` when constructing a service to turn this off for a local-only run.
+
+**The worker** fires due crons and drains queued runs on an interval (`WORKER_INTERVAL_MS`, default 15s). Cycles never
+overlap — a concurrent call joins the one in flight rather than racing it, so a single process never claims the same
+run twice. A cron that throws does not stop the drain.
+
+Long turns can skip the request entirely:
+
+```bash
+curl -X POST .../turns -d '{"prompt":"reconcile the book","async":true}'
+# → {"runId":"run_...","status":"queued"}
+```
+
+Enqueueing nudges the worker, so a queued run starts immediately rather than waiting out the interval. Poll
+`GET /runs/:id` for the outcome.
+
 ## Shared HTTP surface
 
 Both services expose the same core API, plus their own domain routes.
@@ -169,7 +207,9 @@ GET    /runs/:id                          run + tool ledger + verifications + ap
 POST   /approvals/:id/decide              {runId, approved, decidedBy} → resumes the run
 GET    /projects/:id/artifacts | /artifacts/content?path=
 POST   /projects/:id/deployments | /projects/:id/crons
-GET    /audit
+POST   /keys                              admin only — mint a key, shown once
+GET    /keys | DELETE /keys/:id           admin only
+GET    /audit | /metrics                  admin only
 ```
 
 Trading adds `/books/*`, `/instruments`, `/bars`. Marketing adds `/platforms/*`, `/brands/*`, `/channels/*`.
@@ -181,6 +221,8 @@ test/kernel.test.ts               cron, policy, skills, sandbox, store, verifica
 test/engine.test.ts               repair loop, approval suspend/resume, denial, policy denial, artifacts, failures
 test/trading-verifiers.test.ts    all five trading verifiers, passing and failing
 test/marketing-verifiers.test.ts  all six marketing verifiers, plus platform helpers
+test/auth.test.ts                 key lifecycle, per-owner scoping, admin routes, hash hygiene
+test/worker.test.ts               draining, cron firing, non-overlapping cycles, graceful stop
 test/eval.test.ts                 eval scoring, and both corpora held at 100%
 test/metrics.test.ts              aggregation over real runs, empty-store edges
 test/api.test.ts                  both services booted on ephemeral ports, exercised over HTTP
@@ -189,13 +231,15 @@ test/api.test.ts                  both services booted on ephemeral ports, exerc
 ## Known limits
 
 - **The local sandbox is not a security boundary.** Commands run as the host user in a per-project directory. The
-  command policy and path-escape checks stop accidents, not a determined attacker. A real deployment needs a container
-  or microVM behind the same `Sandbox` interface.
+  command policy and path-escape checks stop accidents, not a determined attacker. Auth now keeps strangers off the
+  API, but anyone who holds a key can still run code as the host user — a container or microVM behind the same
+  `Sandbox` interface is required before untrusted users.
 - **The Anthropic adapter is unexercised.** Every test runs against the scripted or programmable harness because the
   environment has no API key. The adapter's shape follows the current Messages API (adaptive thinking, `output_config`
   effort, `fallbacks: "default"`, refusal handling) but has not been run against the live endpoint.
-- **Single-process.** Runs execute inline on the request. `store.claimQueuedRun()` and `engine.drainOnce()` exist for a
-  background worker, but no worker process is wired up.
+- **Single-process.** The worker runs in the same process as the API. `claimQueuedRun()` takes a row-level claim so a
+  second worker would not double-run a job, but that is untested across processes — treat multi-instance as unproven
+  until it runs against Postgres.
 - **`node:sqlite` is experimental** and needs the `--experimental-sqlite` flag. The store interface is small enough to
   repoint at Postgres when concurrency demands it.
 - **Domain data is seeded, not integrated.** There are no live market-data or social-platform connectors; both services

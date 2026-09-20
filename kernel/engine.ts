@@ -282,6 +282,14 @@ export function createEngine(options: EngineOptions) {
       return await executeRun({ ...run, status: "running" });
     },
 
+    /** Queue a prompt for the background worker instead of running it inline. */
+    enqueue(sessionId: string, prompt: string): Run {
+      const session = store.getSession(sessionId);
+      if (!session) throw new Error(`session not found: ${sessionId}`);
+      store.appendEntry(sessionId, "user", prompt);
+      return store.createRun({ sessionId, projectId: session.projectId, prompt });
+    },
+
     /** Resume a run that was suspended on an approval. */
     async resume(runId: string): Promise<RunOutcome> {
       const run = store.getRun(runId);

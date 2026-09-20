@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { presentedKey, type Principal } from "./auth.ts";
 
 export interface RequestContext {
   method: string;
@@ -7,6 +8,8 @@ export interface RequestContext {
   query: URLSearchParams;
   body: unknown;
   headers: IncomingMessage["headers"];
+  /** Null only on routes the service marks public. */
+  principal: Principal | null;
 }
 
 export type Handler = (ctx: RequestContext) => Promise<unknown> | unknown;
@@ -26,6 +29,8 @@ export class HttpError extends Error {
 export const badRequest = (m: string, d?: unknown): HttpError => new HttpError(400, m, d);
 export const notFound = (m: string): HttpError => new HttpError(404, m);
 export const conflict = (m: string): HttpError => new HttpError(409, m);
+export const unauthorized = (m: string): HttpError => new HttpError(401, m);
+export const forbidden = (m: string): HttpError => new HttpError(403, m);
 
 interface Route {
   method: string;
@@ -93,6 +98,10 @@ export interface ServeOptions {
   router: Router;
   maxBodyBytes?: number;
   onError?: (error: unknown, ctx: { method: string; path: string }) => void;
+  /** Resolve a presented key to a principal. Omit to leave the API unauthenticated. */
+  authenticate?: (key: string) => Principal | null;
+  /** Routes reachable without a key, as `METHOD /path`. */
+  publicRoutes?: Set<string>;
 }
 
 export function createHttpServer(options: ServeOptions) {
@@ -112,6 +121,14 @@ export function createHttpServer(options: ServeOptions) {
         const matched = options.router.match(method, url.pathname);
         if (!matched) throw notFound(`no route for ${method} ${url.pathname}`);
 
+        let principal: Principal | null = null;
+        if (options.authenticate && !options.publicRoutes?.has(`${method} ${url.pathname}`)) {
+          const key = presentedKey(req.headers);
+          if (!key) throw unauthorized("an API key is required: send Authorization: Bearer <key>");
+          principal = options.authenticate(key);
+          if (!principal) throw unauthorized("unknown or revoked API key");
+        }
+
         const body = method === "GET" || method === "DELETE" ? undefined : await readBody(req, maxBodyBytes);
         const result = await matched.handler({
           method,
@@ -120,6 +137,7 @@ export function createHttpServer(options: ServeOptions) {
           query: url.searchParams,
           body,
           headers: req.headers,
+          principal,
         });
 
         if (result === undefined) send(res, 204, null);
